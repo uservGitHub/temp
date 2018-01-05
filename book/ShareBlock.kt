@@ -1,9 +1,12 @@
 package whtong
 
+import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Rect
+import android.os.Environment
 import android.os.ParcelFileDescriptor
+import android.os.storage.StorageManager
 
 import android.util.Log
 import android.util.SparseBooleanArray
@@ -39,6 +42,37 @@ class ShareBlock private constructor(queryLength: Int) {
                 }
             }
             return instance!!
+        }
+    }
+}
+
+class StorageUtils {
+    companion object {
+        val storageIn: String by lazy {
+            "${Environment.getExternalStorageDirectory()}"
+        }
+        val storageOut: String
+            get() = storageOutString!!
+
+
+        @Volatile
+        private var storageOutString: String? = null
+
+        fun initStorageOut(activity: Activity): Boolean {
+            if (storageOutString == null) {
+                synchronized(StorageUtils::class) {
+                    if (storageOutString == null) {
+                        val storageOutString =
+                                (activity.applicationContext.getSystemService(Context.STORAGE_SERVICE) as StorageManager)
+                                        .storageVolumes.find { it.isRemovable }?.let {
+                                    val str = it.toString()
+                                    val device = str.substring(str.indexOf('(') + 1, str.indexOf(')'))
+                                    "/storage/$device"
+                                } ?: ""
+                    }
+                }
+            }
+            return true
         }
     }
 }
@@ -148,4 +182,50 @@ class PdfFile(private val filePath:String,private val ctx: Context) {
         yield(1..5)
     }
 }
+
+class GridSysBack(val cellWH: Int){
+    companion object {
+        inline fun buildKey(rowInd: Int, colInd: Int, type: Int = 0)
+                = (rowInd shl 14) or colInd
+        const val MaxInd = (1 shl 14) - 1
+        const val InValid = -1
+        inline val Int.rowInd: Int
+            get() = (this ushr 14) and MaxInd
+        inline val Int.colInd: Int
+            get() = this and MaxInd
+        inline fun keyToString(key: Int) = "(${key.rowInd},${key.colInd})"
+        //[0,maxValue], [a1,a2)
+        inline fun boundUpper(a:Int, b:Int, value:Int,maxValue:Int):Int {
+            if (value < a + b) return 0
+            var result = value / (a + b)
+
+            if (result > maxValue) return InValid
+            return result
+        }
+        //[0,maxValue], (a1,a2]
+        inline fun boundLower(a:Int, b:Int, value:Int,maxValue:Int):Int {
+            if (value <= a) return InValid
+            var adValue = value-a
+            var result = adValue/(a+b)
+            if(adValue.rem(a+b)==0) result--
+            if(result>maxValue) result = maxValue
+            return result
+        }
+    }
+
+    //region    inline
+
+    //region
+}
+
+data class GridConf(
+        var zoom:Float,
+        var visibleX:Int,
+        var visibleY:Int,
+        var pageCount:Int,
+        var pageGridRow:Int,
+        var pageGridColumn:Int,
+        var pageHorGrid:Int = 0,
+        var pageVerGrid:Int=0
+        )
 
